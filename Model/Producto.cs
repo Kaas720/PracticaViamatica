@@ -11,6 +11,6 @@ namespace PracticaViamatica.Model
         [Required]
         public double precio { get; set; }
         [Required]
-        public int cantidadDisponible { get; set; }
+        public int cantidadDisponible { get; set; } 
     }
 }
