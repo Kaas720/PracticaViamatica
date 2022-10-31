@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using DurableTask.Core.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using PracticaViamatica.Data;
 using PracticaViamatica.Model;
 
@@ -44,30 +48,29 @@ namespace PracticaViamatica.Controllers
 
         // PUT: api/Productoes/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutProducto(int id, Producto producto)
+        [HttpPut("/editar")]
+        public async Task<IActionResult> PutProducto(List<productoCompra> productos)
         {
-            if (id != producto.idProducto)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(producto).State = EntityState.Modified;
-
+            ///List<Producto> producto = JsonConvert.DeserializeObject<List<Producto>>((string)productos) ;
             try
             {
+                
+                foreach (productoCompra product in productos)
+                {
+                    Producto editProduct = await _context.producto.FindAsync(product.idProducto);
+                    if (editProduct.cantidadDisponible < product.cantidadComprada) {
+                        return NotFound("Uno o mas productos agotados");
+                    }
+                    editProduct.cantidadDisponible = editProduct.cantidadDisponible - product.cantidadComprada;
+                    _context.Entry(editProduct).State = EntityState.Modified;
+
+                }
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException msj)
             {
-                if (!ProductoExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+
+                return Content("Fallo la actualizacion: "+msj);
             }
 
             return NoContent();

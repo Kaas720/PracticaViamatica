@@ -9,5 +9,7 @@ namespace PracticaViamatica.Data
         {
         }
         public  DbSet<Producto> producto { get; set; }
+        public DbSet<Persona> persona { get; set; }
+        public DbSet<Credenciales> credenciales { get; set; }
     }
 }

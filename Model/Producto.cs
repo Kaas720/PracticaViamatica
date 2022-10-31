@@ -6,11 +6,10 @@ namespace PracticaViamatica.Model
     {
         [Key]
         public int idProducto { get; set; }
-        [Required]
         public string? descripcion { get; set; }
-        [Required]
         public double precio { get; set; }
         [Required]
-        public int cantidadDisponible { get; set; } 
+        public int cantidadDisponible { get; set; }
+        public string url { get; set; }
     }
 }
