@@ -1,11 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
 using PracticaViamatica.Data;
+using PracticaViamatica.Helpers;
 using PracticaViamatica.Model;
 
 namespace PracticaViamatica.Controllers
@@ -15,89 +21,83 @@ namespace PracticaViamatica.Controllers
     public class CredencialController : ControllerBase
     {
         private readonly DataContext _context;
-
-        public CredencialController(DataContext context)
+        private readonly IConfiguration _configuration;
+        private readonly IHttpContextAccessor _accessor;
+        public CredencialController(DataContext context, IConfiguration configuration, IHttpContextAccessor accessor)
         {
             _context = context;
+            _configuration = configuration;
+            _accessor = accessor;
+            // this._context.persona.ToList();
             this._context.persona.ToList();
         }
 
         // GET: api/Credencial
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Credenciales>>> GetCredencial()
+        [HttpPost("Login")]
+        public async Task<ActionResult> LoginCliente(DataUserConnect dataUser)
         {
-            return await _context.credenciales.ToListAsync();
-        }
-
-        // GET: api/Credencial/5
-        [HttpGet("{id}")]
-        public async Task<Credenciales> GetCredencial(int id)
-        {
-            var credencial = await _context.credenciales.FindAsync(id);
-
-           
-
-            return credencial;
-        }
-
-        // PUT: api/Credencial/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutCredencial(int id, Credenciales credencial)
-        {
-            if (id != credencial.idCredenciales)
+            var uset_temp = await _context.credenciales.FirstOrDefaultAsync(x=> x.usuario.ToLower().Equals(dataUser.usuario));
+            if (uset_temp == null)
             {
-                return BadRequest();
+                return BadRequest("Usuario no encontrado");
             }
+            else
+            {
+                if (uset_temp.password.Equals(dataUser.password))
+                {
+                    return Ok(JsonConvert.SerializeObject(CearToken(uset_temp)));
+                }
+                else{
+                    return BadRequest("Contraseña incorrecta");
+                }
+            }
+        }
 
-            _context.Entry(credencial).State = EntityState.Modified;
-
+        private string CearToken(Credenciales user)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.idCredenciales.ToString()), new Claim(ClaimTypes.Name, user.usuario)
+            };
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = System.DateTime.Now.AddDays(1),
+                SigningCredentials = creds
+            };
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+         [Authorize]
+        // GET: api/Personas/5
+        [HttpGet("/BuscarUser")]
+        public async Task<ActionResult<Persona>> BuscarUsuario()
+        {
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!CredencialExists(id))
+                int id = TokenVMT.JwtToPayloadUserData(_accessor.HttpContext);
+                if (id != 0)
                 {
-                    return NotFound();
+                    var credenciales = await _context.credenciales.FindAsync(id);
+                    int idPersona = credenciales.idPerson.Idpersona;
+                    var persona = await _context.persona.FindAsync(idPersona);
+                    return Ok(persona);
                 }
                 else
                 {
-                    throw;
+                    return BadRequest("Token invalido");
                 }
+                
             }
-
-            return NoContent();
-        }
-
-        // POST: api/Credencial
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<Credenciales>> PostCredencial(Credenciales credencial)
-        {
-            _context.credenciales.Add(credencial);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetCredencial", new { id = credencial.idCredenciales }, credencial);
-        }
-
-        // DELETE: api/Credencial/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteCredencial(int id)
-        {
-            var credencial = await _context.credenciales.FindAsync(id);
-            if (credencial == null)
+            catch(Exception ex) 
             {
-                return NotFound();
+                return BadRequest(ex.Message+"lll");
             }
 
-            _context.credenciales.Remove(credencial);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
         }
-
         private bool CredencialExists(int id)
         {
             return _context.credenciales.Any(e => e.idCredenciales == id);

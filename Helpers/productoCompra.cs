@@ -1,4 +1,4 @@
-﻿namespace PracticaViamatica.Model
+﻿namespace PracticaViamatica.Helpers
 {
     public class productoCompra
     {

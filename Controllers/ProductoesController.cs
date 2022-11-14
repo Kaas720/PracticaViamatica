@@ -4,23 +4,27 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using DurableTask.Core.Common;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PracticaViamatica.Data;
+using PracticaViamatica.Helpers;
 using PracticaViamatica.Model;
 
 namespace PracticaViamatica.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ProductoesController : ControllerBase
     {
         private readonly DataContext _context;
 
-        public ProductoesController(DataContext context)
+
+        public ProductoesController(DataContext context, IHttpContextAccessor accessor)
         {
             _context = context;
         }
@@ -36,6 +40,7 @@ namespace PracticaViamatica.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Producto>> GetProducto(int id)
         {
+
             var producto = await _context.producto.FindAsync(id);
 
             if (producto == null)
@@ -48,6 +53,21 @@ namespace PracticaViamatica.Controllers
 
         // PUT: api/Productoes/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        [HttpPut]
+        public async Task<IActionResult> PutProductoGeneral(Producto poducto)
+        {
+            try
+            {
+                _context.Entry(poducto).State = EntityState.Modified;
+               
+                await _context.SaveChangesAsync();
+                return Ok();
+            }
+            catch (DbUpdateConcurrencyException msj)
+            {
+                return Content("Fallo la actualizacion: " + msj);
+            }
+        }
         [HttpPut("/editar")]
         public async Task<IActionResult> PutProducto(List<productoCompra> productos)
         {

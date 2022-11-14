@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PracticaViamatica.Data;
+using PracticaViamatica.Helpers;
 using PracticaViamatica.Model;
 
 namespace PracticaViamatica.Controllers
@@ -28,49 +31,84 @@ namespace PracticaViamatica.Controllers
             return await _context.persona.ToListAsync();
         }
 
-        // GET: api/Personas/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Persona>> GetPersona(int id)
-        {
-            var persona = await _context.persona.FindAsync(id);
-
-            if (persona == null)
-            {
-                return NotFound();
-            }
-
-            return persona;
-        }
-
         // PUT: api/Personas/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutPersona(int id, Persona persona)
+        [Authorize]
+        [HttpPut]
+        public async Task<IActionResult> PutPersona(Persona persona)
         {
-            if (id != persona.Idpersona)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(persona).State = EntityState.Modified;
-
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!PersonaExists(id))
+                if (!PersonaExists(persona.Idpersona))
                 {
-                    return NotFound();
+                    return NotFound(new ApiResultDto()
+                    {
+                        CodigoRetorno = "404",
+                        MensajeRetorno = "Usuario no encontrado"
+                    });
                 }
+                object[] parameters = new object[] {
+                    persona.nombre,
+                    persona.apellido,
+                    persona.correo,
+                    persona.telefono,
+                    persona.direccionDomicilio,
+                    persona.direccionTrabajo
+                 };
+                if (_context.DoExecSP("CreatePersona {0}, {1}, {2}, {3}, {4}, {5}", parameters) != 0)
+                    return Ok();
+                else
+                    return BadRequest("Error al crear persona sp");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest("Error al crear persona: " + ex.Message);
+            }
+        }
+
+        [HttpPut("spEditar")]
+        public async Task<IActionResult> PutPersonaConSP(Persona persona)
+        {
+            try
+            {
+                if (!PersonaExists(persona.Idpersona))
+                {
+                    return NotFound(new ApiResultDto()
+                    {
+                        CodigoRetorno = "404",
+                        MensajeRetorno = "Usuario no encontrado"
+                    });
+                }
+                object[] parameters = new object[] {
+                    persona.Idpersona,
+                    persona.nombre,
+                    persona.apellido,
+                    persona.correo,
+                    persona.telefono,
+                    persona.direccionDomicilio,
+                    persona.direccionTrabajo,
+                     new SqlParameter() { ParameterName = "@mensaje",Direction = System.Data.ParameterDirection.Output, Size = 50 },
+                 };
+                string mensaje = "";
+               if (_context.DoExecSP("UpdatePersona {0}, {1}, {2}, {3}, {4}, {5}, {6} , {7} OUT", parameters, ref mensaje) != 0)
+                    return Ok(new ApiResultDto()
+                    {
+                        CodigoRetorno = "200",
+                        MensajeRetorno = mensaje
+                    });
                 else
                 {
-                    throw;
+                    return BadRequest(new ApiResultDto()
+                    {
+                        CodigoRetorno = "404",
+                        MensajeRetorno = mensaje
+                    });
                 }
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return BadRequest("Error al actualizar usuario: "+ex.Message);
+            }
         }
 
         // POST: api/Personas
@@ -88,16 +126,29 @@ namespace PracticaViamatica.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePersona(int id)
         {
-            var persona = await _context.persona.FindAsync(id);
-            if (persona == null)
+            if (!PersonaExists(id))
             {
-                return NotFound();
+                return NotFound(new ApiResultDto()
+                {
+                    CodigoRetorno = "404",
+                    MensajeRetorno = "Usuario no encontrado"
+                });
             }
-
-            _context.persona.Remove(persona);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            try
+            {
+                object[] parameters = new object[] {
+                    id,
+                 };
+                if (_context.DoExecSP("DelatePersona {0}", parameters) != 0)
+                    return Ok();
+                else
+                    return BadRequest("Error al eliminar usuario");
+                return Ok();
+            }
+            catch(Exception ex)
+            {
+                return BadRequest("Error al eliminar usuario: " + ex.Message);
+            }
         }
 
         private bool PersonaExists(int id)
